@@ -1,0 +1,16 @@
+{
+  "id": "Shot 1",
+  "label": "床头灯下",
+  "sub_shots": [
+    {
+      "caption": "<Subject 1>手里拿着<Prop 1>（招新传单），画面中是<Prop 1>的背面，显示空白，低头看着。<Subject 2>凭空出现在桌面上，镜头靠近<Subject 2>，",
+      "speeches": [
+        { "subject": "Subject 2", "s2": true, "note": "", "audio": "Audio 2", "lead": "担心的使用", "text": "包吃包住，怎么越看越像缅北..." }
+      ]
+    },
+    {
+      "caption": "<Subject 2>无奈摆了摆手，凭空消失。",
+      "speeches": []
+    }
+  ]
+}

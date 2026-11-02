@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "project_name": "示例：神庭快递招新",
+  "settings": {
+    "style_constraint": "全程维持：中式二次元动画、新海诚式极致光影、精致写实向背景美术、光线粒子与尘埃浮动、暖色调高对比。室外和窗外保持漆黑，无任何室外光源，没有太阳。"
+  },
+  "subjects": [
+    {
+      "id": "Subject 1",
+      "name": "昭月月",
+      "alias": "本体",
+      "desc": "短发妹子",
+      "is_q_version": false,
+      "q_version_id": "Subject 2",
+      "view_set": "",
+      "audios": [
+        { "id": "Audio 1", "path": "", "desc": "昭月月音色参考" }
+      ]
+    },
+    {
+      "id": "Subject 2",
+      "name": "昭月月",
+      "alias": "Q版小人",
+      "is_q_version": true,
+      "q_version_id": "Subject 1",
+      "view_set": "",
+      "audios": [
+        { "id": "Audio 2", "path": "", "desc": "Q版小人音色参考" }
+      ]
+    }
+  ],
+  "scenes": [
+    {
+      "id": "Scene 1",
+      "label": "房间",
+      "path": "",
+      "desc": "夜晚的房间布置，房间，床头灯，床，柜子，矿泉水瓶。"
+    }
+  ],
+  "props": [
+    {
+      "id": "Prop 1",
+      "label": "招新传单",
+      "path": "",
+      "desc": "招新传单，提供传单的画面信息，其中正面写着“神庭快递” 与 “高薪诚聘”，背面是空白。"
+    }
+  ],
+  "sequences": [
+    {
+      "id": "Seq 1",
+      "name": "招新片段",
+      "lip_constraint": "全程只有Q版小人<Subject 2>在说话，画面中其余人物始终闭嘴、嘴唇完全不动、不发出任何声音。",
+      "cast": ["Subject 1", "Subject 2"],
+      "scenes": ["Scene 1"],
+      "props": ["Prop 1"],
+      "shot_files": ["shot_001.json", "shot_002.json"]
+    }
+  ],
+  "shot_dir": "example.shots"
+}
