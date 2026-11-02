@@ -52,6 +52,20 @@ mingw32-make
 2. 也可 **新建工程**，在左侧树中逐项添加角色 / 场景 / 道具 / 分镜，填写资源路径与台词。
 3. **保存** 会写出 `.h3json` 工程文件（资源以相对路径记录）。
 
+## 关于
+
+- **软件**：H3Hint — MiniMax H3 提示词工程编辑器（C++ / Qt 6）。
+- **作者**：实行宫周慧
+- **B站**：https://space.bilibili.com/159524865（ID：`bili_94689949015`）
+- **QQ**：631394438
+
+> 菜单 **文件 → 关于** 中也列出了以上联系方式，且各项为只读文本框，可直接选中复制。
+
+### 视频用例
+
+- [用例 1]https://www.bilibili.com/video/BV1odnU6DEaJ/
+- [用例 2]https://www.bilibili.com/video/BV1wgxb6JEzx/
+
 ## 工程 JSON 结构（摘要）
 
 ```jsonc

@@ -1574,8 +1574,39 @@ void MainWindow::doImportAssets() {
 }
 
 void MainWindow::onAbout() {
-    QMessageBox::about(this, "关于 H3Hint",
-        "H3Hint — MiniMax H3 提示词工程编辑器\n\n"
-        "用 C++ / Qt 6 编写。工程以 JSON 配置，支持角色四视图参考图、场景、道具、"
-        "音色音频资源管理，分镜与台词编辑，并一键生成 H3 六段结构提示词。");
+    auto* dlg = new QDialog(this);
+    dlg->setWindowTitle("关于 H3Hint");
+    dlg->setMinimumWidth(440);
+
+    auto* v = new QVBoxLayout(dlg);
+
+    auto* title = new QLabel("<b>H3Hint — MiniMax H3 提示词工程编辑器</b>");
+    title->setWordWrap(true);
+    v->addWidget(title);
+
+    auto* desc = new QLabel("用 C++ / Qt 6 编写。工程以 JSON 配置，支持角色四视图参考图、场景、道具、"
+                            "音色音频资源管理，分镜与台词编辑，并一键生成 H3 六段结构提示词。");
+    desc->setWordWrap(true);
+    v->addWidget(desc);
+
+    auto* info = new QGroupBox("作者 / 联系方式");
+    auto* fl = new QFormLayout(info);
+    auto addRow = [&](const QString& label, const QString& value) {
+        auto* le = new QLineEdit(value);
+        le->setReadOnly(true);
+        fl->addRow(label, le);
+    };
+    addRow("B站名：", "实行宫周慧");
+    addRow("B站 ID：", "bili_94689949015");
+    addRow("QQ：", "631394438");
+    v->addWidget(info);
+
+    auto* h = new QHBoxLayout;
+    h->addStretch(1);
+    auto* ok = new QPushButton("确定");
+    h->addWidget(ok);
+    v->addLayout(h);
+    connect(ok, &QPushButton::clicked, dlg, &QDialog::accept);
+
+    dlg->exec();
 }
