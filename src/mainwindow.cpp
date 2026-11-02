@@ -37,9 +37,11 @@
 #include <QJsonDocument>
 #include <QHash>
 #include <QStatusBar>
+#include <QSignalBlocker>
 #include <functional>
 
 #include "theme.h"
+#include "wheelsafecombo.h"
 
 static void clearLayout(QLayout* lay) {
     if (!lay) return;
@@ -392,7 +394,7 @@ QWidget* MainWindow::buildSubjectEditor(int idx) {
     });
     form->addRow(cbQ);
 
-    auto* cbQid = new QComboBox;
+    auto* cbQid = new WheelSafeComboBox;
     cbQid->addItem("(无)", "");
     for (int i = 0; i < proj.subjects.size(); ++i)
         if (i != idx) {
@@ -456,17 +458,33 @@ void MainWindow::fillAudios(QWidget* container, int sIdx) {
     auto* lay = container->layout();
     for (int ai = 0; ai < proj.subjects[sIdx].audios.size(); ++ai) {
         auto& a = proj.subjects[sIdx].audios[ai];
-        auto* g = new QGroupBox(QString("音频 %1").arg(a.id));
+        auto* g = new QGroupBox(a.name.trimmed().isEmpty() ? QString("音频 #%1").arg(ai + 1) : a.name);
         auto* f = new QFormLayout(g);
 
-        auto* leId = new QLineEdit(a.id);
-        connect(leId, &QLineEdit::textChanged, [this, sIdx, ai](const QString& t) {
-            proj.subjects[sIdx].audios[ai].id = t; markDirty();
+        // 音频名称（界面显示用；内部编号 id 已内置，不再提供编辑）
+        auto* leName = new QLineEdit(a.name);
+        leName->setPlaceholderText("如：温柔女声；留空时选择文件会自动用文件名填充");
+        connect(leName, &QLineEdit::textChanged, [this, sIdx, ai, g](const QString& t) {
+            proj.subjects[sIdx].audios[ai].name = t;
+            g->setTitle(t.trimmed().isEmpty()
+                            ? QString("音频 #%1").arg(ai + 1)
+                            : t);
+            markDirty();
         });
-        f->addRow("音频编号", leId);
+        f->addRow("音频名称", leName);
         f->addRow(makePathRow("音频文件",
             [this, sIdx, ai]() { return proj.subjects[sIdx].audios[ai].path; },
-            [this, sIdx, ai](const QString& t) { proj.subjects[sIdx].audios[ai].path = t; markDirty(); },
+            [this, sIdx, ai, leName](const QString& t) {
+                auto& au = proj.subjects[sIdx].audios[ai];
+                au.path = t;
+                // 名称为空时，用所选音频的文件名作为名称（仅对已存在的文件生效，避免手输路径时误填）
+                if (au.name.trimmed().isEmpty() && !t.isEmpty() && QFileInfo(t).isFile()) {
+                    QString base = QFileInfo(t).completeBaseName();
+                    if (!base.isEmpty()) au.name = base;
+                }
+                if (leName && leName->text() != au.name) leName->setText(au.name);
+                markDirty();
+            },
             "选择音频文件"));
         auto* teDesc = new QPlainTextEdit(a.desc);
         teDesc->setMinimumHeight(56);
@@ -895,7 +913,7 @@ void MainWindow::fillCast(QWidget* container, int seqIdx) {
 
     auto* addRow = new QWidget;
     auto* hl2 = new QHBoxLayout(addRow);
-    auto* combo = new QComboBox;
+    auto* combo = new WheelSafeComboBox;
     for (const auto& s : proj.subjects)
         if (!cast.contains(s.id)) combo->addItem(subjectDisplay(s), s.id);
     combo->setPlaceholderText("选择要添加的角色…");
@@ -944,7 +962,7 @@ void MainWindow::fillScenes(QWidget* container, int seqIdx) {
 
     auto* addRow = new QWidget;
     auto* hl2 = new QHBoxLayout(addRow);
-    auto* combo = new QComboBox;
+    auto* combo = new WheelSafeComboBox;
     for (int k = 0; k < proj.scenes.size(); ++k) {
         const auto& s = proj.scenes[k];
         if (!list.contains(s.id))
@@ -996,7 +1014,7 @@ void MainWindow::fillProps(QWidget* container, int seqIdx) {
 
     auto* addRow = new QWidget;
     auto* hl2 = new QHBoxLayout(addRow);
-    auto* combo = new QComboBox;
+    auto* combo = new WheelSafeComboBox;
     for (int k = 0; k < proj.props.size(); ++k) {
         const auto& s = proj.props[k];
         if (!list.contains(s.id))
@@ -1065,32 +1083,108 @@ void MainWindow::fillSpeeches(QWidget* container, int seqIdx, int shotIdx, int s
     clearLayout(container->layout());
     auto* lay = container->layout();
 
-    QStringList subjectIds;
-    for (auto& s : proj.subjects) subjectIds << s.id;
-    QStringList audioIds;
-    for (auto& s : proj.subjects)
-        for (auto& a : s.audios) audioIds << a.id;
+    auto findSubj = [this](const QString& id) -> const Subject* {
+        for (const auto& s : proj.subjects) if (s.id == id) return &s;
+        return nullptr;
+    };
+    // 角色显示名：名称（备注名）；无名称则用编号
+    auto subjLabel = [](const Subject& s) -> QString {
+        QString n = s.name.trimmed().isEmpty() ? s.id : s.name.trimmed();
+        if (!s.alias.trimmed().isEmpty()) n += "（" + s.alias.trimmed() + "）";
+        return n;
+    };
+    // 音色显示名：音频名称（空则用文件名；内部编号不再对外显示）
+    auto audioLabel = [](const AudioRef& a) -> QString {
+        QString n = a.name.trimmed();
+        if (n.isEmpty() && !a.path.isEmpty()) n = QFileInfo(a.path).completeBaseName();
+        return n.isEmpty() ? QString("（未命名音频）") : n;
+    };
+
+    // 候选说话角色只取“本分镜已加入的角色”（cast）；分镜未配置出场角色时，
+    // 镜头里的台词不再提供任何可选的说话角色，也不提供其音色
+    QStringList allowed;
+    for (const auto& id : proj.sequences[seqIdx].cast)
+        if (findSubj(id)) allowed << id;
+    const bool hasCast = !allowed.isEmpty();
 
     auto& sps = proj.sequences[seqIdx].shots[shotIdx].subShots[subIdx].speeches;
     for (int k = 0; k < sps.size(); ++k) {
         auto* g = new QGroupBox(QString("台词 #%1").arg(k + 1));
         auto* f = new QFormLayout(g);
 
-        auto* cbSub = new QComboBox;
-        cbSub->addItems(subjectIds);
-        int si = subjectIds.indexOf(sps[k].subject);
-        cbSub->setCurrentIndex(si < 0 ? 0 : si);
-        connect(cbSub, &QComboBox::currentTextChanged, [this, seqIdx, shotIdx, subIdx, k](const QString& t) {
-            proj.sequences[seqIdx].shots[shotIdx].subShots[subIdx].speeches[k].subject = t; markDirty();
-        });
+        auto* cbSub = new WheelSafeComboBox;
+        if (!hasCast) {
+            cbSub->addItem("（本分镜未配置出场角色）", QString());
+            cbSub->setEnabled(false);
+        } else {
+            QStringList ids = allowed;
+            // 历史数据里可能存有不在 cast 内的角色，保留以免被静默改掉
+            if (!sps[k].subject.isEmpty() && !ids.contains(sps[k].subject))
+                ids << sps[k].subject;
+            for (const auto& id : ids) {
+                const Subject* s = findSubj(id);
+                cbSub->addItem(s ? subjLabel(*s) : id, id);
+                cbSub->setItemData(cbSub->count() - 1, id, Qt::ToolTipRole);
+            }
+            int si = cbSub->findData(sps[k].subject);
+            if (si < 0) si = 0;
+            cbSub->setCurrentIndex(si);
+            // 数据里没存说话角色时，把下拉默认选中的角色写回，避免“界面显示已选、数据却为空”
+            sps[k].subject = cbSub->itemData(si).toString();
+        }
         f->addRow("说话角色", cbSub);
 
-        auto* cbS2 = new QCheckBox("Q 版小人 (S2)");
-        cbS2->setChecked(sps[k].s2);
-        connect(cbS2, &QCheckBox::toggled, [this, seqIdx, shotIdx, subIdx, k](bool b) {
-            proj.sequences[seqIdx].shots[shotIdx].subShots[subIdx].speeches[k].s2 = b; markDirty();
+        auto* cbAudio = new WheelSafeComboBox;
+        // 只列出该角色“已配置”（有名称或有文件）的音色；未配置的空音频槽和其他角色的
+        // 历史音色都不再出现，避免下拉里残留不正确的选项。
+        auto populateAudio = [cbAudio, findSubj, audioLabel](const QString& subjId,
+                                                            const QString& want,
+                                                            bool preferFirst) -> QString {
+            QSignalBlocker b(cbAudio);
+            cbAudio->clear();
+            cbAudio->addItem("（无音色音频）", QString());
+            const Subject* s = findSubj(subjId);
+            if (s)
+                for (const auto& a : s->audios) {
+                    // 未命名且无文件的音频不构成可用选项
+                    if (a.name.trimmed().isEmpty() && a.path.trimmed().isEmpty()) continue;
+                    cbAudio->addItem(audioLabel(a), a.id);
+                    cbAudio->setItemData(cbAudio->count() - 1, a.desc, Qt::ToolTipRole);
+                }
+            int ai = want.isEmpty() ? -1 : cbAudio->findData(want);
+            if (ai < 0) {
+                // 有效匹配优先；未指定时（切角色）取第一个可用音色；否则空音频
+                ai = (preferFirst && cbAudio->count() > 1) ? 1 : 0;
+            }
+            cbAudio->setCurrentIndex(ai);
+            return cbAudio->itemData(ai).toString();
+        };
+        if (!hasCast) {
+            cbAudio->addItem("（无出场角色，无音色可选）", QString());
+            cbAudio->setEnabled(false);
+        } else {
+            // 载入时把指向“未配置/不存在”音色的旧值纠正为空音频，保证下拉与数据一致
+            QString resolved = populateAudio(sps[k].subject, sps[k].audio, /*preferFirst=*/false);
+            if (!sps[k].audio.isEmpty() && resolved != sps[k].audio) sps[k].audio = resolved;
+        }
+        f->addRow("音色音频", cbAudio);
+
+        connect(cbSub, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+                [this, seqIdx, shotIdx, subIdx, k, cbSub, populateAudio](int) {
+            auto& arr = proj.sequences[seqIdx].shots[shotIdx].subShots[subIdx].speeches;
+            if (k >= arr.size()) return;
+            arr[k].subject = cbSub->currentData().toString();
+            // 切换角色后，音色自动切到该角色可用的首个音频，避免配错
+            arr[k].audio = populateAudio(arr[k].subject, QString(), /*preferFirst=*/true);
+            markDirty();
         });
-        f->addRow(cbS2);
+        connect(cbAudio, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+                [this, seqIdx, shotIdx, subIdx, k, cbAudio](int) {
+            auto& arr = proj.sequences[seqIdx].shots[shotIdx].subShots[subIdx].speeches;
+            if (k >= arr.size()) return;
+            arr[k].audio = cbAudio->currentData().toString();
+            markDirty();
+        });
 
         auto* leNote = new QLineEdit(sps[k].note);
         connect(leNote, &QLineEdit::textChanged, [this, seqIdx, shotIdx, subIdx, k](const QString& t) {
@@ -1098,17 +1192,8 @@ void MainWindow::fillSpeeches(QWidget* container, int seqIdx, int shotIdx, int s
         });
         f->addRow("备注 (说话话式, 空则无)", leNote);
 
-        auto* cbAudio = new QComboBox;
-        cbAudio->addItems(audioIds);
-        int ai = audioIds.indexOf(sps[k].audio);
-        cbAudio->setCurrentIndex(ai < 0 ? 0 : ai);
-        connect(cbAudio, &QComboBox::currentTextChanged, [this, seqIdx, shotIdx, subIdx, k](const QString& t) {
-            proj.sequences[seqIdx].shots[shotIdx].subShots[subIdx].speeches[k].audio = t; markDirty();
-        });
-        f->addRow("音色音频", cbAudio);
-
         auto* leLead = new QLineEdit(sps[k].lead);
-        leLead->setPlaceholderText("如：担心的使用");
+        leLead->setPlaceholderText("如：担心的");
         connect(leLead, &QLineEdit::textChanged, [this, seqIdx, shotIdx, subIdx, k](const QString& t) {
             proj.sequences[seqIdx].shots[shotIdx].subShots[subIdx].speeches[k].lead = t; markDirty();
         });
@@ -1283,10 +1368,10 @@ void MainWindow::onLoadExample() {
     p.settings.styleConstraint = "全程维持：中式二次元动画、新海诚式极致光影、精致写实向背景美术、光线粒子与尘埃浮动、暖色调高对比。室外和窗外保持漆黑，无任何室外光源，没有太阳。";
 
     Subject s1; s1.id = "Subject 1"; s1.name = "昭月月"; s1.alias = "本体"; s1.desc = "短发妹子"; s1.qId = "Subject 2";
-    AudioRef a1; a1.id = "Audio 1"; a1.desc = "昭月月音色参考"; s1.audios.append(a1);
+    AudioRef a1; a1.id = "Audio 1"; a1.name = "昭月月音色参考"; a1.desc = "昭月月音色参考"; s1.audios.append(a1);
 
     Subject s2; s2.id = "Subject 2"; s2.name = "昭月月"; s2.alias = "Q版小人"; s2.isQ = true; s2.qId = "Subject 1";
-    AudioRef a2; a2.id = "Audio 2"; a2.desc = "Q版小人音色参考"; s2.audios.append(a2);
+    AudioRef a2; a2.id = "Audio 2"; a2.name = "Q版小人音色参考"; a2.desc = "Q版小人音色参考"; s2.audios.append(a2);
 
     p.subjects << s1 << s2;
 
@@ -1309,7 +1394,7 @@ void MainWindow::onLoadExample() {
     SubShot ss1;
     ss1.caption = "<Subject 1>手里拿着<Prop 1>（招新传单），画面中是<Prop 1>的背面，显示空白，低头看着。<Subject 2>凭空出现在桌面上，镜头靠近<Subject 2>，";
     Speech sp1; sp1.subject = "Subject 2"; sp1.s2 = true; sp1.audio = "Audio 2";
-    sp1.lead = "担心的使用"; sp1.text = "包吃包住，怎么越看越像缅北...";
+    sp1.lead = "担心的"; sp1.text = "包吃包住，怎么越看越像缅北...";
     ss1.speeches << sp1;
     SubShot ss2; ss2.caption = "<Subject 2>无奈摆了摆手，凭空消失。";
     sh1.subShots << ss1 << ss2;

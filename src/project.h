@@ -7,7 +7,8 @@
 
 // 角色音色音频参考
 struct AudioRef {
-    QString id = "Audio 1";
+    QString id = "Audio 1";      // 内部编号（生成用，界面不显示、不可编辑）
+    QString name;                // 音频名称（界面显示；空则可选择文件时用文件名填充）
     QString path;
     QString desc = "提供音色、语速与发声习惯参考，仅作音色参考，不复制音频内容。";
     QJsonObject toJson(const QString& base) const;
@@ -48,7 +49,7 @@ struct Prop {
     void fromJson(const QJsonObject& o, const QString& base);
 };
 
-// 一段台词：<Subject N>(S2)[备注]<Audio N>说：“中文内容”
+// 一段台词：<Subject N>(S<n>)[备注]使用<Audio N>说：“中文内容”（S<n> 为整段提示词内跨镜头连续编号）
 struct Speech {
     QString subject;
     bool s2 = false;

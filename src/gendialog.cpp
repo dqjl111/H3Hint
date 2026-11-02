@@ -1,5 +1,6 @@
 #include "gendialog.h"
 #include "generator.h"
+#include "wheelsafecombo.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -48,12 +49,12 @@ GenDialog::GenDialog(Project& proj, AppConfig& cfg, QWidget* parent) : QDialog(p
     // 背景环境声音 / 背景音乐
     auto* gSound = new QGroupBox("声音与音乐（从应用配置选取，也可手填）");
     auto* sf = new QFormLayout(gSound);
-    auto* cbSound = new QComboBox;
+    auto* cbSound = new WheelSafeComboBox;
     cbSound->setEditable(true);
     cbSound->addItems(cfg.soundscapes);
     if (cbSound->count()) cbSound->setCurrentIndex(0);
     sf->addRow("背景环境声音 overall_soundscape", cbSound);
-    auto* cbMusic = new QComboBox;
+    auto* cbMusic = new WheelSafeComboBox;
     cbMusic->setEditable(true);
     cbMusic->addItems(cfg.musics);
     if (cbMusic->count()) cbMusic->setCurrentIndex(0);

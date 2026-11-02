@@ -27,6 +27,7 @@ QString Project::toAbs(const QString& p, const QString& base) {
 QJsonObject AudioRef::toJson(const QString& base) const {
     QJsonObject o;
     o["id"]   = id;
+    o["name"] = name;
     o["path"] = Project::toRel(path, base);
     o["desc"] = desc;
     return o;
@@ -34,6 +35,7 @@ QJsonObject AudioRef::toJson(const QString& base) const {
 
 void AudioRef::fromJson(const QJsonObject& o, const QString& base) {
     id   = o["id"].toString("Audio 1");
+    name = o["name"].toString();
     path = Project::toAbs(o["path"].toString(), base);
     desc = o["desc"].toString();
 }

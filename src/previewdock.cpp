@@ -1,6 +1,7 @@
 #include "previewdock.h"
 #include "project.h"
 #include "generator.h"
+#include "wheelsafecombo.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -89,8 +90,8 @@ PreviewDock::PreviewDock(Project* proj, AppConfig* cfg, int sequenceIndex, QWidg
     lwStyle_->setSelectionMode(QAbstractItemView::MultiSelection);
     gv->addWidget(lwStyle_);
     auto* sf = new QFormLayout;
-    cbSound_ = new QComboBox; cbSound_->setEditable(true);
-    cbMusic_ = new QComboBox; cbMusic_->setEditable(true);
+    cbSound_ = new WheelSafeComboBox; cbSound_->setEditable(true);
+    cbMusic_ = new WheelSafeComboBox; cbMusic_->setEditable(true);
     sf->addRow("背景环境声音 overall_soundscape", cbSound_);
     sf->addRow("背景音乐 non_diegetic_music", cbMusic_);
     gv->addLayout(sf);
@@ -394,6 +395,7 @@ void PreviewDock::buildSourceTable() {
         srcTree_->setItem(r, 0, i0);
         srcTree_->setItem(r, 1, i1);
     };
+    int speechNo = 0;   // 整段提示词内的句子序号：(S1)、(S2)…（跨镜头连续递增）
     for (int k = 0; k < seq.shots.size(); ++k) {
         int shotNo = k + 1;
         QString lbl = seq.shots[k].label.trimmed();
@@ -411,7 +413,7 @@ void PreviewDock::buildSourceTable() {
             for (const auto& sp : ss.speeches) {
                 QString who = subjectName(sp.subject);
                 QString txt = sp.text.trimmed();
-                addRow("    台词（" + who + "）" + (sp.s2 ? "(S2)" : ""), txt, k);
+                addRow("    台词（" + who + "）(S" + QString::number(++speechNo) + ")", txt, k);
             }
         }
     }

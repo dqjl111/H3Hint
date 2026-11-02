@@ -1,4 +1,5 @@
 #include "appconfigdialog.h"
+#include "wheelsafecombo.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -58,7 +59,7 @@ AppSettingsDialog::AppSettingsDialog(AppConfig& cfg, QWidget* parent) : QDialog(
     auto* av = new QVBoxLayout(appearance);
     auto* themeGroup = new QGroupBox("界面主题");
     auto* tf = new QFormLayout(themeGroup);
-    auto* themeCombo = new QComboBox;
+    auto* themeCombo = new WheelSafeComboBox;
     themeCombo->addItem("深色（默认）", "dark");
     themeCombo->addItem("浅色", "light");
     int ti = themeCombo->findData(cfg.theme);

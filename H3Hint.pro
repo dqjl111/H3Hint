@@ -30,7 +30,8 @@ HEADERS += \
     src/appconfigdialog.h \
     src/gendialog.h \
     src/previewdock.h \
-    src/theme.h
+    src/theme.h \
+    src/wheelsafecombo.h
 
 # 图标：EXE 资源 + 窗口/任务栏图标
 RESOURCES += resources/appicon.qrc

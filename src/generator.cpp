@@ -77,12 +77,15 @@ static QList<LineInfo> buildSequenceLines(const Project& p, const Sequence& seq,
                 if (findSubject(p, sp.subject)) {
                     addUniq(subjG, sp.subject); subjShots[sp.subject].insert(shotNo);
                 }
-                addUniq(audioG, sp.audio); audioShots[sp.audio].insert(shotNo);
-                for (const auto& s : p.subjects)
-                    for (const auto& a : s.audios)
-                        if (a.id == sp.audio) {
-                            addUniq(subjG, s.id); subjShots[s.id].insert(shotNo);
-                        }
+                // 仅当明确选择了音色时才纳入 <Audio>；空音频不应生成 使用<Audio N>
+                if (!sp.audio.trimmed().isEmpty()) {
+                    addUniq(audioG, sp.audio); audioShots[sp.audio].insert(shotNo);
+                    for (const auto& s : p.subjects)
+                        for (const auto& a : s.audios)
+                            if (a.id == sp.audio) {
+                                addUniq(subjG, s.id); subjShots[s.id].insert(shotNo);
+                            }
+                }
             }
         }
     }
@@ -167,13 +170,17 @@ static QList<LineInfo> buildSequenceLines(const Project& p, const Sequence& seq,
     }
     for (const auto& g : audioG) {
         QString owner;
+        QString aname = g;   // 来源标注优先显示音频名称
         for (const auto& s : p.subjects)
             for (const auto& a : s.audios)
-                if (a.id == g && ls.contains(s.id))
-                    owner = QString("<Subject %1>").arg(ls[s.id]);
+                if (a.id == g) {
+                    if (!a.name.trimmed().isEmpty()) aname = a.name.trimmed();
+                    if (ls.contains(s.id))
+                        owner = QString("<Subject %1>").arg(ls[s.id]);
+                }
         add(QString("<Audio %1> 是%2的音色参考音频，提供音色、语速与发声习惯参考，仅作音色参考，不复制音频内容。")
                 .arg(la[g]).arg(owner),
-            QString("音色：%1").arg(g));
+            QString("音色：%1").arg(aname));
     }
 
     // ---- summary ----
@@ -213,6 +220,7 @@ static QList<LineInfo> buildSequenceLines(const Project& p, const Sequence& seq,
     // ---- detailed_description（本分镜下各镜头分段） ----
     add("detailed_description:");
     int ssNo = 0;
+    int speechNo = 0;   // 整段提示词内的句子序号：(S1)、(S2)…（跨镜头连续递增）
     for (int k = 0; k < seq.shots.size(); ++k) {
         int shotNo = k + 1;
         QString shotLabel = seq.shots[k].label.trimmed();
@@ -225,13 +233,24 @@ static QList<LineInfo> buildSequenceLines(const Project& p, const Sequence& seq,
                 add(remap(ss.caption.trimmed()),
                     QString("镜头%1·段落%2 画面描述").arg(shotNo).arg(ssNo));
             for (const auto& sp : ss.speeches) {
-                QString s2 = sp.s2 ? "(S2)" : "";
+                QString sTag = QString("(S%1)").arg(++speechNo);   // 按句子顺序编号
                 QString note = sp.note.trimmed().isEmpty() ? "" : ("[备注：" + sp.note + "]");
                 QString lead = sp.lead.trimmed();
-                int L = ls.value(sp.subject, 0);
+                // 数据里未记录说话角色（空或存的是显示名）时，回退到本分镜出场角色，
+                // 再退到本镜头首个出现的人物，避免生成 <Subject 0>
+                QString subjId = sp.subject;
+                if (!ls.contains(subjId)) {
+                    for (const auto& cid : seq.cast)
+                        if (ls.contains(cid)) { subjId = cid; break; }
+                }
+                if (!ls.contains(subjId) && !subjG.isEmpty())
+                    subjId = subjG.first();
+                int L = ls.value(subjId, 0);
                 int A = la.value(sp.audio, 0);
-                add(QString("<Subject %1>%2%3%4<Audio %5>说：“%6”")
-                        .arg(L).arg(s2).arg(note).arg(lead).arg(A).arg(sp.text.trimmed()),
+                // 有音色时输出“使用<Audio N>”，无音色（A=0）则整段不带音频标记
+                QString audioTag = (A > 0) ? QString("使用<Audio %1>").arg(A) : QString();
+                add(QString("<Subject %1>%2%3%4%5说：“%6”")
+                        .arg(L).arg(sTag).arg(note).arg(lead).arg(audioTag).arg(sp.text.trimmed()),
                     QString("镜头%1·段落%2 角色<Subject %3> 台词").arg(shotNo).arg(ssNo).arg(L));
             }
         }
