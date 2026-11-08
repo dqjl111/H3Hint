@@ -658,6 +658,13 @@ QWidget* MainWindow::buildSequencesHeader() {
     auto* btn = new QPushButton("+ 添加分镜");
     connect(btn, &QPushButton::clicked, [this]() {
         Sequence seq;
+        int maxN = 0;
+        QRegularExpression re("^Seq\\s+(\\d+)$");
+        for (const auto& x : proj.sequences) {
+            auto m = re.match(x.id);
+            if (m.hasMatch()) maxN = qMax(maxN, m.captured(1).toInt());
+        }
+        seq.id = QString("Seq %1").arg(maxN + 1);
         seq.shots.append(Shot());
         proj.sequences.append(seq);
         markDirty();
@@ -674,20 +681,51 @@ QWidget* MainWindow::buildSequenceEditor(int seqIdx) {
     auto* page = new QWidget;
     auto* v = new QVBoxLayout(page);
 
-    // 顶部快捷操作：预览/编辑提示词、删除分镜（避免滚到底部才能点）
+    // 顶部快捷操作：预览/编辑提示词、插入/复制/删除分镜（避免滚到底部才能点）
     auto* topActions = new QWidget;
     auto* tah = new QHBoxLayout(topActions);
     tah->setContentsMargins(0, 0, 0, 0);
     auto* btnPreview = new QPushButton("预览 / 编辑当前分镜提示词");
+    auto* btnInsSeq = new QPushButton("插入分镜");
+    auto* btnDupSeq = new QPushButton("复制该分镜");
     auto* btnDelSeq = new QPushButton("删除该分镜");
     auto* btnUp = new QPushButton("↑上移");
     auto* btnDown = new QPushButton("↓下移");
     tah->addWidget(btnPreview);
+    tah->addWidget(btnInsSeq);
+    tah->addWidget(btnDupSeq);
     tah->addWidget(btnDelSeq);
     tah->addWidget(btnUp);
     tah->addWidget(btnDown);
     tah->addStretch(1);
     v->addWidget(topActions);
+
+    // 生成不冲突的下一个分镜内部编号（Seq N）
+    auto nextSeqId = [this]() -> QString {
+        int maxN = 0;
+        QRegularExpression re("^Seq\\s+(\\d+)$");
+        for (const auto& x : proj.sequences) {
+            auto m = re.match(x.id);
+            if (m.hasMatch()) maxN = qMax(maxN, m.captured(1).toInt());
+        }
+        return QString("Seq %1").arg(maxN + 1);
+    };
+
+    connect(btnInsSeq, &QPushButton::clicked, [this, seqIdx, nextSeqId]() {
+        Sequence seq;
+        seq.id = nextSeqId();
+        seq.shots.append(Shot());
+        proj.sequences.insert(seqIdx + 1, seq);
+        markDirty(); buildTree(); selectItem("sequence", seqIdx + 1);
+    });
+    connect(btnDupSeq, &QPushButton::clicked, [this, seqIdx, nextSeqId]() {
+        Sequence copy = proj.sequences[seqIdx];   // 深拷贝（含镜头/段落/台词）
+        copy.id = nextSeqId();
+        copy.shotFiles.clear();   // 保存时按全局顺序重新分配文件名，避免复用旧文件名
+        if (!copy.name.trimmed().isEmpty()) copy.name += " 副本";
+        proj.sequences.insert(seqIdx + 1, copy);
+        markDirty(); buildTree(); selectItem("sequence", seqIdx + 1);
+    });
     connect(btnDelSeq, &QPushButton::clicked, [this, seqIdx]() {
         proj.sequences.removeAt(seqIdx);
         markDirty(); buildTree(); selectItem("sequences_header", -1);
@@ -1596,9 +1634,10 @@ void MainWindow::onAbout() {
         le->setReadOnly(true);
         fl->addRow(label, le);
     };
+    addRow("组织：", "中国人民共同富裕实行研究会");
     addRow("B站名：", "实行宫周慧");
     addRow("B站 ID：", "bili_94689949015");
-    addRow("QQ：", "631394438");
+    addRow("QQ群：", "1104274724");
     v->addWidget(info);
 
     auto* h = new QHBoxLayout;
